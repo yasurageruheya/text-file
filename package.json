@@ -1,5 +1,5 @@
 {
-  "name": "text-file",
+  "name": "text-file-cache",
   "version": "1.0.0",
   "description": "ローカルのテキストファイルの内容をキャッシュ期限付きで読み書きが出来るライブラリ",
   "main": "TextFile.js",
