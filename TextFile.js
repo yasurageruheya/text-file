@@ -44,33 +44,48 @@ class TextFile extends EventEmitter
 		/** @type {string|Buffer} @private */
 		this._content = fs.readFileSync(filePath, this.encoding);
 
+
+		this._getPromise = null;
+
 		/** @type {boolean} @private */
 		this._isWriting = false;
 	}
 
 	/**
 	 *
-	 * @return {string}
+	 * @return {Promise<string>}
 	 */
 	get content()
 	{
-		if(this._isRecheckTimeout)
+		if(!this._getPromise)
 		{
-			this._isRecheckTimeout = false;
-			const mtime = fs.statSync(this.filePath).mtime;
-			if(this.updatedAt < mtime)
+			this._getPromise = new Promise((resolve, reject)=>
 			{
-				this.updatedAt = mtime;
-				this._content = fs.readFileSync(this.filePath, this.encoding);
-			}
+				fs.stat(this.filePath, (error, stats)=>
+				{
+					if(error) return reject(error);
+
+					const mtime = stats.mtime;
+					if(this.updatedAt < mtime)
+					{
+						this.updatedAt = mtime;
+						fs.readFile(this.filePath, this.encoding, (error, content)=>
+						{
+							this._content = content;
+							resolve(this._content);
+						})
+					}
+					else resolve(this._content);
+				})
+			});
 
 			setTimeout(()=>
 			{
-				this._isRecheckTimeout = true;
+				this._getPromise = null;
 			}, this.cacheTimeout);
 		}
 
-		return this._content;
+		return this._getPromise;
 	}
 
 	/**
@@ -83,6 +98,7 @@ class TextFile extends EventEmitter
 		this.updatedAt = this._prevCheckDate = new Date;
 		if(!this._isWriting)
 		{
+			this._getPromise = new Promise(resolve=>resolve(value));
 			this._isWriting = true;
 			const writeData = this._content;
 			fs.writeFile(this.filePath, writeData, this.encoding, ((error)=>
