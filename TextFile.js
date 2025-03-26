@@ -4,6 +4,20 @@ const EventEmitter = require("events");
 
 class TextFile extends EventEmitter
 {
+	/** @type {boolean} */
+	static #allowConstruct = false;
+
+	/** @type {TextFile} */
+	static getTextFile(filePath)
+	{
+		if(memories[filePath]) return memories[filePath];
+
+		this.#allowConstruct = true;
+		const m = new TextFile(filePath);
+		this.#allowConstruct = false;
+		memories[filePath] = m;
+		return m;
+	}
 	/**
 	 * @event TextFile.complete
 	 * @param {TextFile} textFile
@@ -13,42 +27,46 @@ class TextFile extends EventEmitter
 	 * @param {TextFile} textFile
 	 * @param {Error} error
 	 */
+
+	/** @type {Date} */
+	updatedAt = null;
+
+	/** @type {string} */
+	filePath;
+
+	/** @type {Date} */
+	#prevCheckDate;
+
+	/** @type {number} */
+	cacheTimeout = 1000;
+
+	/** @type {string|*} */
+	encoding = "utf-8";
+
+	/** @type {string|Buffer} */
+	#content;
+
+	/** @type {Promise<string>} */
+	#getPromise;
+
+	/** @type {boolean} */
+	#isWriting = false;
 	/**
 	 *
 	 * @param {string} filePath
+	 * @param {boolean} [shouldCreateIfNotExists=false]
 	 * @fires TextFile.complete
 	 * @fires TextFile.error
 	 */
-	constructor(filePath)
+	constructor(filePath, shouldCreateIfNotExists = false)
 	{
+		if(!TextFile.#allowConstruct) throw new Error("new でインスタンスを生成せず、クラスメソッドの getTextFile(filePath:string, shouldCreateIfNotExists:boolean=false) を使用してインスタンスを生成してください");
 		super();
 
-		/** @type {Date} */
-		this.updatedAt = null;
-
-		/** @type {string} */
 		this.filePath = filePath;
 
-		/** @type {Date} @private */
-		this._prevCheckDate = null;
-
-		/** @type {boolean} */
-		this._isRecheckTimeout = true;
-
-		/** @type {number} */
-		this.cacheTimeout = 1000;
-
-		/** @type {string|*} */
-		this.encoding = "utf-8";
-
-		/** @type {string|Buffer} @private */
-		this._content = fs.readFileSync(filePath, this.encoding);
-
-
-		this._getPromise = null;
-
-		/** @type {boolean} @private */
-		this._isWriting = false;
+		if(!fs.existsSync(filePath) && shouldCreateIfNotExists) fs.writeFileSync(filePath, "", this.encoding);
+		else throw new Error(`${filePath} 存在しないファイルが指定されました。ファイルが存在しない場合に、自動的にテキストファイルを生成させたい場合は、クラスメソッドの getTextFile の第二引数に true を指定してください`);
 	}
 
 	/**
@@ -57,9 +75,9 @@ class TextFile extends EventEmitter
 	 */
 	get content()
 	{
-		if(!this._getPromise)
+		if(!this.#getPromise)
 		{
-			this._getPromise = new Promise((resolve, reject)=>
+			this.#getPromise = new Promise((resolve, reject)=>
 			{
 				fs.stat(this.filePath, (error, stats)=>
 				{
@@ -71,21 +89,21 @@ class TextFile extends EventEmitter
 						this.updatedAt = mtime;
 						fs.readFile(this.filePath, this.encoding, (error, content)=>
 						{
-							this._content = content;
-							resolve(this._content);
+							this.#content = content;
+							resolve(this.#content);
 						})
 					}
-					else resolve(this._content);
+					else resolve(this.#content);
 				})
 			});
 
 			setTimeout(()=>
 			{
-				this._getPromise = null;
+				this.#getPromise = null;
 			}, this.cacheTimeout);
 		}
 
-		return this._getPromise;
+		return this.#getPromise;
 	}
 
 	/**
@@ -94,22 +112,22 @@ class TextFile extends EventEmitter
 	 */
 	set content(value)
 	{
-		this._content = value;
-		this.updatedAt = this._prevCheckDate = new Date;
-		if(!this._isWriting)
+		this.#content = value;
+		this.updatedAt = this.#prevCheckDate = new Date;
+		if(!this.#isWriting)
 		{
-			this._getPromise = new Promise(resolve=>resolve(value));
-			this._isWriting = true;
-			const writeData = this._content;
+			this.#getPromise = new Promise(resolve=>resolve(value));
+			this.#isWriting = true;
+			const writeData = this.#content;
 			fs.writeFile(this.filePath, writeData, this.encoding, ((error)=>
 			{
 				if(error) this.emit("error", this, error);
 
-				this._isWriting = false;
-				if(writeData !== this._content)
+				this.#isWriting = false;
+				if(writeData !== this.#content)
 				{
 					console.log("rewrite");
-					this.content = this._content;
+					this.content = this.#content;
 				}
 				else
 				{
@@ -120,16 +138,6 @@ class TextFile extends EventEmitter
 		}
 	}
 
-	/** @type {TextFile} */
-	static getTextFile(filePath)
-	{
-		if(memories[filePath]) return memories[filePath];
-
-		const m = new TextFile(filePath);
-		memories[filePath] = m;
-		return m;
-	}
-
 	get isExist()
 	{
 		return fs.existsSync(this.filePath);
@@ -137,7 +145,7 @@ class TextFile extends EventEmitter
 
 	get isWriting()
 	{
-		return this._isWriting;
+		return this.#isWriting;
 	}
 }
 
