@@ -70,7 +70,8 @@ class TextFile extends EventEmitter
 
 		this.filePath = filePath;
 
-		if(!fs.existsSync(filePath) && shouldCreateIfNotExists) fs.writeFileSync(filePath, "", this.encoding);
+		if(fs.existsSync(filePath)) {}
+		else if(shouldCreateIfNotExists) fs.writeFileSync(filePath, "", this.encoding);
 		else throw new Error(`${filePath} 存在しないファイルが指定されました。ファイルが存在しない場合に、自動的にテキストファイルを生成させたい場合は、クラスメソッドの getTextFile の第二引数に true を指定してください`);
 	}
 
