@@ -7,13 +7,18 @@ class TextFile extends EventEmitter
 	/** @type {boolean} */
 	static #allowConstruct = false;
 
-	/** @type {TextFile} */
-	static getTextFile(filePath)
+	/**
+	 *
+	 * @param {string} filePath
+	 * @param {boolean} [shouldCreateIfNotExists=false]
+	 * @return {TextFile}
+	 */
+	static getTextFile(filePath, shouldCreateIfNotExists=false)
 	{
 		if(memories[filePath]) return memories[filePath];
 
 		this.#allowConstruct = true;
-		const m = new TextFile(filePath);
+		const m = new TextFile(filePath, shouldCreateIfNotExists);
 		this.#allowConstruct = false;
 		memories[filePath] = m;
 		return m;
